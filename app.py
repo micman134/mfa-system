@@ -307,22 +307,39 @@ def assess_risk(user, context, failed_attempts):
     return risk_engine.predict(req)
 
 def log_attempt(uid, username, email, role, status, action, risk_score, ctx):
+    """Log authentication attempt with proper user_id"""
     now = datetime.now()
-    log_auth_attempt({
-        "user_id": uid, "username": username, "email": email, "role": role,
-        "status": status, "action_taken": action, "risk_score": risk_score,
+    
+    # Ensure uid is properly converted to string
+    user_id_str = str(uid) if uid else None
+    
+    log_data = {
+        "user_id": user_id_str,
+        "username": username,
+        "email": email,
+        "role": role,
+        "status": status,
+        "action_taken": action,
+        "risk_score": risk_score,
         "ip_address": ctx.get("ip_address", "web"),
         "device_fingerprint": ctx.get("device_fingerprint"),
-        "browser": ctx.get("browser"), "os": ctx.get("os"),
+        "browser": ctx.get("browser"),
+        "os": ctx.get("os"),
         "device_type": ctx.get("device_type", "desktop"),
         "country": ctx.get("country", "Unknown"),
         "failed_attempts": ctx.get("failed_attempts", 0),
         "is_known_device": ctx.get("is_known_device", False),
         "location_mismatch": ctx.get("location_mismatch", False),
-        "hour": now.hour, "minute": now.minute, "day_of_week": now.weekday(),
-        "is_weekend": now.weekday() >= 5, "is_business_hours": 9 <= now.hour <= 17,
+        "hour": now.hour,
+        "minute": now.minute,
+        "day_of_week": now.weekday(),
+        "is_weekend": now.weekday() >= 5,
+        "is_business_hours": 9 <= now.hour <= 17,
         "created_at": now,
-    })
+    }
+    
+    print(f"📝 Logging attempt - User ID: {user_id_str}, Username: {username}, Status: {status}")
+    log_auth_attempt(log_data)
 
 def train_ml(logs):
     """Train ML with any number of records — no minimum enforced."""
