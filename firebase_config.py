@@ -1,8 +1,7 @@
-# firebase_config.py — works locally (.env file) AND on Streamlit Cloud (st.secrets)
+# firebase_config.py — firebase-admin only (no pyrebase4, works on Python 3.14)
 
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
-import pyrebase
 import os
 import json
 from datetime import datetime
@@ -14,7 +13,7 @@ try:
 except Exception:
     pass
 
-# ── Secret resolver: checks st.secrets first, then os.environ ────────────────
+# ── Secret resolver: st.secrets (Streamlit Cloud) → os.environ (local) ───────
 def _secret(key, default=""):
     try:
         import streamlit as st
@@ -25,14 +24,12 @@ def _secret(key, default=""):
     return os.getenv(key, default)
 
 # ── Globals ───────────────────────────────────────────────────────────────────
-_db            = None
-_bucket        = None
-_firebase_auth = None
-_firebase_db   = None
+_db     = None
+_bucket = None
 
 
 def initialize_firebase():
-    global _db, _bucket, _firebase_auth, _firebase_db
+    global _db, _bucket
     try:
         if not firebase_admin._apps:
             # Priority 1: JSON string from Streamlit secrets or env var
@@ -40,18 +37,18 @@ def initialize_firebase():
             if sa_json:
                 try:
                     cred = credentials.Certificate(json.loads(sa_json))
-                    print("✅ Firebase credentials loaded from secrets/env var")
+                    print("✅ Firebase credentials loaded from secrets")
                 except Exception as e:
                     print(f"❌ Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}")
                     return
             else:
-                # Priority 2: local JSON file (dev only — never commit to git)
+                # Priority 2: local JSON file (dev only)
                 sa_file = "mfasystem-61756-firebase-adminsdk-fbsvc-1a5d8b4456.json"
                 if os.path.exists(sa_file):
                     cred = credentials.Certificate(sa_file)
                     print("✅ Firebase credentials loaded from local file")
                 else:
-                    print("❌ No Firebase credentials found! Set FIREBASE_SERVICE_ACCOUNT secret.")
+                    print("❌ No Firebase credentials found!")
                     return
 
             firebase_admin.initialize_app(cred, {
@@ -64,18 +61,6 @@ def initialize_firebase():
         _db     = firestore.client()
         _bucket = storage.bucket()
         print("✅ Firestore + Storage ready")
-
-        pyrebase_config = {
-            "apiKey":        _secret("FIREBASE_API_KEY", "AIzaSyDummyKeyForTesting"),
-            "authDomain":    "mfasystem-61756.firebaseapp.com",
-            "projectId":     "mfasystem-61756",
-            "storageBucket": "mfasystem-61756.firebasestorage.app",
-            "databaseURL":   "https://mfasystem-61756-default-rtdb.firebaseio.com",
-        }
-        fb               = pyrebase.initialize_app(pyrebase_config)
-        _firebase_auth   = fb.auth()
-        _firebase_db     = fb.database()
-        print("✅ Pyrebase ready")
 
     except Exception as e:
         print(f"FIREBASE ERROR: {e}")
@@ -105,16 +90,18 @@ def get_sessions_collection():    return get_firestore().collection('sessions')
 def get_user_by_email(email):
     if not email: return None
     try:
-        r = list(get_users_collection().where('email','==',email.lower()).limit(1).get())
-        if r: d = r[0].to_dict(); d['id'] = r[0].id; return d
+        r = list(get_users_collection().where('email', '==', email.lower()).limit(1).get())
+        if r:
+            d = r[0].to_dict(); d['id'] = r[0].id; return d
     except Exception as e: print(f"get_user_by_email: {e}")
     return None
 
 def get_user_by_username(username):
     if not username: return None
     try:
-        r = list(get_users_collection().where('username','==',username.lower()).limit(1).get())
-        if r: d = r[0].to_dict(); d['id'] = r[0].id; return d
+        r = list(get_users_collection().where('username', '==', username.lower()).limit(1).get())
+        if r:
+            d = r[0].to_dict(); d['id'] = r[0].id; return d
     except Exception as e: print(f"get_user_by_username: {e}")
     return None
 
@@ -122,7 +109,8 @@ def get_user_by_id(user_id):
     if not user_id: return None
     try:
         doc = get_users_collection().document(user_id).get()
-        if doc.exists: d = doc.to_dict(); d['id'] = doc.id; return d
+        if doc.exists:
+            d = doc.to_dict(); d['id'] = doc.id; return d
     except Exception as e: print(f"get_user_by_id: {e}")
     return None
 
@@ -162,8 +150,8 @@ def log_auth_attempt(data):
 
 def get_auth_logs(filters=None, limit=100):
     try:
-        q = get_auth_logs_collection()\
-            .order_by('created_at', direction=firestore.Query.DESCENDING)\
+        q = get_auth_logs_collection() \
+            .order_by('created_at', direction=firestore.Query.DESCENDING) \
             .limit(limit)
         if filters:
             for k, v in filters.items():
@@ -183,11 +171,12 @@ def save_otp(data):
 def get_valid_otp(user_id, otp_code):
     try:
         r = list(get_otp_codes_collection()
-                 .where('user_id','==',user_id)
-                 .where('otp_code','==',otp_code)
-                 .where('is_used','==',False)
+                 .where('user_id', '==', user_id)
+                 .where('otp_code', '==', otp_code)
+                 .where('is_used', '==', False)
                  .limit(1).get())
-        if r: d = r[0].to_dict(); d['id'] = r[0].id; return d
+        if r:
+            d = r[0].to_dict(); d['id'] = r[0].id; return d
     except Exception as e: print(f"get_valid_otp: {e}")
     return None
 
@@ -196,7 +185,7 @@ def get_valid_otp(user_id, otp_code):
 def get_risk_rules(active_only=True):
     try:
         q = get_risk_rules_collection()
-        if active_only: q = q.where('is_active','==',True)
+        if active_only: q = q.where('is_active', '==', True)
         q = q.order_by('priority', direction=firestore.Query.DESCENDING)
         return [{**d.to_dict(), 'id': d.id} for d in q.get()]
     except Exception as e: print(f"get_risk_rules: {e}"); return []
