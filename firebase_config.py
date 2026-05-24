@@ -1,4 +1,4 @@
-# firebase_config.py — firebase-admin only, Python 3.14 compatible
+# firebase_config.py — Updated with proper user_id handling and log retrieval
 
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
@@ -138,22 +138,81 @@ def get_all_users():
 
 # ── Auth Logs ─────────────────────────────────────────────────────────────────
 def log_auth_attempt(data):
+    """Log authentication attempt with proper user_id storage"""
     try:
         ref = get_auth_logs_collection().document()
         data.setdefault('created_at', datetime.now())
-        ref.set(data); return ref.id
-    except Exception as e: print(f"log_auth_attempt: {e}"); return None
+        
+        # Ensure user_id is stored as string for consistent querying
+        if 'user_id' in data and data['user_id']:
+            data['user_id'] = str(data['user_id'])
+        
+        ref.set(data)
+        print(f"📝 Logged auth attempt - User: {data.get('username', 'unknown')}, Status: {data.get('status', 'unknown')}")
+        return ref.id
+    except Exception as e:
+        print(f"log_auth_attempt ERROR: {e}")
+        return None
 
-def get_auth_logs(filters=None, limit=100):
+def get_auth_logs(filters=None, limit=500):
+    """Get auth logs with improved filtering and debugging"""
     try:
+        # Start with base query ordered by creation time
         q = get_auth_logs_collection() \
             .order_by('created_at', direction=firestore.Query.DESCENDING) \
             .limit(limit)
+        
+        # Apply filters if provided
         if filters:
             for k, v in filters.items():
-                q = q.where(filter=_ff(k, '==', v))
-        return [{**d.to_dict(), 'id': d.id} for d in q.get()]
-    except Exception as e: print(f"get_auth_logs: {e}"); return []
+                if v is not None:
+                    # Convert user_id to string for consistent matching
+                    if k == 'user_id':
+                        v = str(v)
+                    try:
+                        q = q.where(filter=_ff(k, '==', v))
+                    except Exception as e:
+                        print(f"Filter error on {k}={v}: {e}")
+        
+        # Execute query
+        docs = q.get()
+        results = []
+        
+        for doc in docs:
+            data = doc.to_dict()
+            data['id'] = doc.id
+            
+            # Convert Firestore timestamp to datetime if needed
+            if 'created_at' in data and hasattr(data['created_at'], 'timestamp'):
+                data['created_at'] = data['created_at']
+            
+            results.append(data)
+        
+        print(f"📊 Retrieved {len(results)} auth logs (filter: {filters})")
+        return results
+        
+    except Exception as e:
+        print(f"get_auth_logs ERROR: {e}")
+        return []
+
+
+def get_user_auth_logs(user_id, limit=200):
+    """Convenience function to get logs for a specific user with multiple fallbacks"""
+    if not user_id:
+        print("⚠️ No user_id provided to get_user_auth_logs")
+        return []
+    
+    user_id_str = str(user_id)
+    logs = []
+    
+    # Try direct filter by user_id
+    try:
+        logs = get_auth_logs(filters={"user_id": user_id_str}, limit=limit)
+        print(f"🔍 Found {len(logs)} logs for user_id: {user_id_str}")
+    except Exception as e:
+        print(f"Error filtering by user_id: {e}")
+    
+    return logs
 
 
 # ── OTP ───────────────────────────────────────────────────────────────────────
@@ -167,7 +226,7 @@ def save_otp(data):
 def get_valid_otp(user_id, otp_code):
     try:
         r = list(get_otp_codes_collection()
-                 .where(filter=_ff('user_id', '==', user_id))
+                 .where(filter=_ff('user_id', '==', str(user_id)))
                  .where(filter=_ff('otp_code', '==', otp_code))
                  .where(filter=_ff('is_used', '==', False))
                  .limit(1).get())
