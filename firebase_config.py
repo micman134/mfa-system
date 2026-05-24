@@ -1,4 +1,4 @@
-# firebase_config.py — firebase-admin only (no pyrebase4, works on Python 3.14)
+# firebase_config.py — firebase-admin only, Python 3.14 compatible
 
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
@@ -6,14 +6,12 @@ import os
 import json
 from datetime import datetime
 
-# Load .env for local development
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
     pass
 
-# ── Secret resolver: st.secrets (Streamlit Cloud) → os.environ (local) ───────
 def _secret(key, default=""):
     try:
         import streamlit as st
@@ -23,7 +21,6 @@ def _secret(key, default=""):
         pass
     return os.getenv(key, default)
 
-# ── Globals ───────────────────────────────────────────────────────────────────
 _db     = None
 _bucket = None
 
@@ -32,24 +29,20 @@ def initialize_firebase():
     global _db, _bucket
     try:
         if not firebase_admin._apps:
-            # Priority 1: JSON string from Streamlit secrets or env var
             sa_json = _secret("FIREBASE_SERVICE_ACCOUNT")
             if sa_json:
                 try:
                     cred = credentials.Certificate(json.loads(sa_json))
                     print("✅ Firebase credentials loaded from secrets")
                 except Exception as e:
-                    print(f"❌ Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}")
-                    return
+                    print(f"❌ Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}"); return
             else:
-                # Priority 2: local JSON file (dev only)
                 sa_file = "mfasystem-61756-firebase-adminsdk-fbsvc-1a5d8b4456.json"
                 if os.path.exists(sa_file):
                     cred = credentials.Certificate(sa_file)
                     print("✅ Firebase credentials loaded from local file")
                 else:
-                    print("❌ No Firebase credentials found!")
-                    return
+                    print("❌ No Firebase credentials found!"); return
 
             firebase_admin.initialize_app(cred, {
                 "storageBucket": "mfasystem-61756.firebasestorage.app"
@@ -67,13 +60,11 @@ def initialize_firebase():
 
 
 def get_firestore():
-    if _db is None:
-        initialize_firebase()
+    if _db is None: initialize_firebase()
     return _db
 
 def get_storage():
-    if _bucket is None:
-        initialize_firebase()
+    if _bucket is None: initialize_firebase()
     return _bucket
 
 
@@ -85,23 +76,31 @@ def get_risk_rules_collection():  return get_firestore().collection('risk_rules'
 def get_action_logs_collection(): return get_firestore().collection('action_logs')
 def get_sessions_collection():    return get_firestore().collection('sessions')
 
+# ── helper: build FieldFilter for new API ────────────────────────────────────
+def _ff(field, op, value):
+    """Return a FieldFilter object (new Firestore API, no deprecation warning)."""
+    from google.cloud.firestore_v1.base_query import FieldFilter
+    return FieldFilter(field, op, value)
+
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 def get_user_by_email(email):
     if not email: return None
     try:
-        r = list(get_users_collection().where('email', '==', email.lower()).limit(1).get())
-        if r:
-            d = r[0].to_dict(); d['id'] = r[0].id; return d
+        r = list(get_users_collection()
+                 .where(filter=_ff('email', '==', email.lower()))
+                 .limit(1).get())
+        if r: d = r[0].to_dict(); d['id'] = r[0].id; return d
     except Exception as e: print(f"get_user_by_email: {e}")
     return None
 
 def get_user_by_username(username):
     if not username: return None
     try:
-        r = list(get_users_collection().where('username', '==', username.lower()).limit(1).get())
-        if r:
-            d = r[0].to_dict(); d['id'] = r[0].id; return d
+        r = list(get_users_collection()
+                 .where(filter=_ff('username', '==', username.lower()))
+                 .limit(1).get())
+        if r: d = r[0].to_dict(); d['id'] = r[0].id; return d
     except Exception as e: print(f"get_user_by_username: {e}")
     return None
 
@@ -109,8 +108,7 @@ def get_user_by_id(user_id):
     if not user_id: return None
     try:
         doc = get_users_collection().document(user_id).get()
-        if doc.exists:
-            d = doc.to_dict(); d['id'] = doc.id; return d
+        if doc.exists: d = doc.to_dict(); d['id'] = doc.id; return d
     except Exception as e: print(f"get_user_by_id: {e}")
     return None
 
@@ -119,9 +117,7 @@ def create_user(user_data):
         ref = get_users_collection().document()
         user_data.pop('id', None)
         user_data.setdefault('created_at', datetime.now())
-        ref.set(user_data)
-        user_data['id'] = ref.id
-        return user_data
+        ref.set(user_data); user_data['id'] = ref.id; return user_data
     except Exception as e: print(f"create_user: {e}"); return None
 
 def update_user(user_id, data):
@@ -155,7 +151,7 @@ def get_auth_logs(filters=None, limit=100):
             .limit(limit)
         if filters:
             for k, v in filters.items():
-                q = q.where(k, '==', v)
+                q = q.where(filter=_ff(k, '==', v))
         return [{**d.to_dict(), 'id': d.id} for d in q.get()]
     except Exception as e: print(f"get_auth_logs: {e}"); return []
 
@@ -171,12 +167,11 @@ def save_otp(data):
 def get_valid_otp(user_id, otp_code):
     try:
         r = list(get_otp_codes_collection()
-                 .where('user_id', '==', user_id)
-                 .where('otp_code', '==', otp_code)
-                 .where('is_used', '==', False)
+                 .where(filter=_ff('user_id', '==', user_id))
+                 .where(filter=_ff('otp_code', '==', otp_code))
+                 .where(filter=_ff('is_used', '==', False))
                  .limit(1).get())
-        if r:
-            d = r[0].to_dict(); d['id'] = r[0].id; return d
+        if r: d = r[0].to_dict(); d['id'] = r[0].id; return d
     except Exception as e: print(f"get_valid_otp: {e}")
     return None
 
@@ -185,7 +180,8 @@ def get_valid_otp(user_id, otp_code):
 def get_risk_rules(active_only=True):
     try:
         q = get_risk_rules_collection()
-        if active_only: q = q.where('is_active', '==', True)
+        if active_only:
+            q = q.where(filter=_ff('is_active', '==', True))
         q = q.order_by('priority', direction=firestore.Query.DESCENDING)
         return [{**d.to_dict(), 'id': d.id} for d in q.get()]
     except Exception as e: print(f"get_risk_rules: {e}"); return []
