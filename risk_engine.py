@@ -199,7 +199,7 @@ class RiskEngine:
             return None
         
         try:
-            response = requests.post(self.api_url, json=request_data, timeout=3)
+            response = requests.post(self.api_url, json=request_data, timeout=10)
             if response.status_code == 200:
                 result = response.json()
                 if result.get('success'):
