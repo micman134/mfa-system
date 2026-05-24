@@ -9,6 +9,13 @@ import numpy as np
 import bcrypt
 from datetime import datetime, timedelta, timezone
 
+from firebase_config import (
+    get_user_by_email, get_user_by_username, get_user_by_id,
+    create_user, update_user, get_all_users,
+    log_auth_attempt, get_auth_logs, get_user_auth_logs,  # Add this
+    save_otp, get_valid_otp,
+    get_risk_rules, get_firestore
+)
 # ── Page config (must be first) ──────────────────────────────────────────────
 st.set_page_config(
     page_title="EduAuth MFA System",
@@ -1012,70 +1019,46 @@ def page_admin():
 # ═══════════════════════════════════════════════════════════════════════════════
 # STUDENT DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
+# In page_student() function, replace the log retrieval section with:
+
 def page_student():
     user = st.session_state.user
     rs   = st.session_state.risk_score
     page = st.session_state.nav_page
     emoji, color, label = risk_badge(rs)
 
-    try: ulogs = get_auth_logs(filters={"user_id": user["id"]}, limit=200) or []
-    except: ulogs = []
-
-    if page in ("My Dashboard", "Dashboard"):
-        st.markdown(f'<div class="hero"><h1>🏠 My Dashboard</h1><p>Welcome back, {user.get("full_name","Student")}</p></div>', unsafe_allow_html=True)
-
-        c1,c2,c3,c4 = st.columns(4)
-        stat_card(c1, len(ulogs),               "Total Logins",   "All time")
-        stat_card(c2, f"{rs:.0f}",              "Last Risk Score", label, color=color)
-        stat_card(c3, user.get("department","N/A"), "Department",  user.get("level",""))
-        stat_card(c4, user.get("matric","N/A"),    "Matric No.",   "")
-
-        st.markdown("---")
-        st.markdown("### 📊 My Login Activity")
-        if ulogs:
-            df_u = pd.DataFrame(ulogs)
-            if "created_at" in df_u.columns:
-                df_u["date"] = df_u["created_at"].apply(lambda x: x.date() if hasattr(x,"date") else None)
-            if "risk_score" in df_u.columns and df_u["risk_score"].notna().any():
-                fig = px.line(df_u.sort_values("date") if "date" in df_u.columns else df_u,
-                              x="date" if "date" in df_u.columns else df_u.index,
-                              y="risk_score", title="My Risk Score Over Time",
-                              markers=True, color_discrete_sequence=["#667eea"])
-                fig.add_hrect(y0=0, y1=30, fillcolor="#22c55e", opacity=.06, line_width=0, annotation_text="Low")
-                fig.add_hrect(y0=30, y1=70, fillcolor="#f59e0b", opacity=.06, line_width=0, annotation_text="Medium")
-                fig.add_hrect(y0=70, y1=100, fillcolor="#ef4444", opacity=.06, line_width=0, annotation_text="High")
-                fig.update_layout(height=300, margin=dict(t=40,b=10))
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No login activity yet.")
-
-    elif page == "Login History":
-        st.markdown('<div class="hero"><h1>📋 My Login History</h1></div>', unsafe_allow_html=True)
-        if ulogs:
-            df_u = pd.DataFrame(ulogs)
-            if "created_at" in df_u.columns: df_u["created_at"] = df_u["created_at"].apply(format_dt)
-            show = [c for c in ["created_at","status","risk_score","browser","action_taken"] if c in df_u.columns]
-            st.dataframe(df_u[show], use_container_width=True,
-                column_config={"created_at":"Time","status":"Status",
-                               "risk_score":st.column_config.NumberColumn("Risk Score",format="%.1f"),
-                               "browser":"Browser","action_taken":"Action"})
-        else:
-            st.info("No login history found.")
-
-    elif page == "Security":
-        st.markdown('<div class="hero"><h1>🔒 Security Overview</h1></div>', unsafe_allow_html=True)
-        ok_u   = [l for l in ulogs if l.get("status")=="success"]
-        fail_u = [l for l in ulogs if l.get("status")=="failed"]
-        c1,c2,c3 = st.columns(3)
-        stat_card(c1, len(ok_u),   "Successful Logins", "")
-        stat_card(c2, len(fail_u), "Failed Attempts",   "")
-        stat_card(c3, f"{rs:.0f}", "Last Risk Score",   label, color=color)
-        st.markdown("---")
-        st.subheader("🔒 Security Tips")
-        t1,t2,t3 = st.columns(3)
-        t1.info("💡 **Use Known Devices**\nAlways log in from your registered devices for a lower risk score.")
-        t2.warning("📍 **Watch Login Times**\nLogins outside 9am–5pm trigger higher risk scores.")
-        t3.success("🔐 **Protect Your OTP**\nNever share your verification code. It expires in 5 minutes.")
+    # Get user_id safely
+    user_id = user.get('id')
+    username = user.get('username')
+    email = user.get('email')
+    
+    print(f"🔍 Student Dashboard - User: {username}, ID: {user_id}, Email: {email}")
+    
+    # Use the dedicated function to get user logs
+    from firebase_config import get_user_auth_logs
+    
+    ulogs = []
+    if user_id:
+        ulogs = get_user_auth_logs(user_id, limit=200)
+        print(f"📊 Retrieved {len(ulogs)} logs for user {username}")
+    
+    # Fallback: if no logs found by user_id, try by username
+    if not ulogs:
+        try:
+            ulogs = get_auth_logs(filters={"username": username}, limit=200)
+            print(f"📊 Retrieved {len(ulogs)} logs for username {username}")
+        except Exception as e:
+            print(f"Fallback by username failed: {e}")
+    
+    # Second fallback: if still no logs, try by email
+    if not ulogs and email:
+        try:
+            ulogs = get_auth_logs(filters={"email": email}, limit=200)
+            print(f"📊 Retrieved {len(ulogs)} logs for email {email}")
+        except Exception as e:
+            print(f"Fallback by email failed: {e}")
+    
+    # Rest of the page_student function continues...
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN
