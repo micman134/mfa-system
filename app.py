@@ -664,9 +664,15 @@ def page_otp():
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         st.markdown(f"**Welcome, {user.get('full_name', user['username'])}**")
         st.markdown(f'<div class="ml-box">{emoji} Risk Score: <b style="color:{color}">{rs:.1f}/100</b> — {label}<br><small>Method: {st.session_state.risk_method.replace("_"," ").title()}</small></div>', unsafe_allow_html=True)
+        
+        # ========== ADD THIS SECTION - DISPLAY FALLBACK OTP ==========
+        from email_utils import display_fallback_otp
+        display_fallback_otp()
+        # ============================================================
+        
         st.markdown("Enter the **6-digit code** sent to your email address. Code expires in 5 minutes.")
         st.markdown("---")
-
+        
         # OTP digits
         cols = st.columns(6)
         digits = [cols[i].text_input(f"Digit {i+1}", max_chars=1, key=f"otp_d{i}",
@@ -692,6 +698,9 @@ def page_otp():
                     update_user(user["id"], {"last_login": datetime.now()})
                     log_attempt(user["id"], user["username"], user["email"], user["role"],
                                 "success", "otp_verified", rs, {})
+                    # Clear fallback OTP on successful verification
+                    from email_utils import clear_fallback_otp
+                    clear_fallback_otp()
                     st.session_state.update(authenticated=True, pending_auth=False, otp_id=None)
                     st.success("✅ Verified! Logging you in…")
                     time.sleep(0.6); st.rerun()
@@ -704,6 +713,11 @@ def page_otp():
             new_id = save_otp({"user_id": user["id"], "otp_code": new_code,
                                "expires_at": now_utc() + timedelta(minutes=5), "is_used": False})
             st.session_state.otp_id = new_id
+            
+            # Clear old fallback OTP
+            from email_utils import clear_fallback_otp
+            clear_fallback_otp()
+            
             send_otp_display(user["email"], user.get("full_name", user["username"]),
                              new_code, user["role"], rs)
             for i in range(6): st.session_state.pop(f"otp_d{i}", None)
@@ -711,6 +725,8 @@ def page_otp():
 
         st.markdown("---")
         if st.button("← Cancel & Return to Login", use_container_width=True):
+            from email_utils import clear_fallback_otp
+            clear_fallback_otp()
             st.session_state.update(pending_auth=False, otp_id=None, user=None)
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
