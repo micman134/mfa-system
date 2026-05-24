@@ -1,4 +1,4 @@
-# email_utils.py - Shows OTP in UI as fallback when email fails
+# email_utils.py - Shows OTP in UI as fallback with persistence
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -117,46 +117,127 @@ def send_otp_email(to_email, to_name, otp_code, role='user', risk_score=None):
     print(f"  Valid for 5 minutes")
     print(f"{'='*55}\n")
     
-    # Show OTP in UI as fallback if email failed
+    # Store OTP in session state for UI display (persists through reruns)
     if not email_sent:
-        _show_otp_in_ui(to_name, to_email, otp_code, risk_score)
+        _store_otp_for_ui(to_name, to_email, otp_code, risk_score)
     
     return email_sent
 
 
-def _show_otp_in_ui(name, email, code, risk_score=None):
-    """Display OTP directly in Streamlit UI as fallback."""
+def _store_otp_for_ui(name, email, code, risk_score=None):
+    """Store OTP in session state so it persists through Streamlit reruns."""
     try:
         import streamlit as st
         
-        risk_html = f'<span class="risk-high" style="background:#dc354520; padding:2px 8px; border-radius:12px;">Risk: {risk_score:.0f}</span>' if risk_score else ''
+        # Initialize session state for OTP display if not exists
+        if 'fallback_otp' not in st.session_state:
+            st.session_state.fallback_otp = None
+        
+        # Store the OTP information
+        st.session_state.fallback_otp = {
+            'code': code,
+            'name': name,
+            'email': email,
+            'risk_score': risk_score,
+            'timestamp': datetime.now().isoformat(),
+            'expires_in': 300  # 5 minutes
+        }
+        
+    except Exception as e:
+        print(f"Session storage error: {e}")
+
+
+def clear_fallback_otp():
+    """Clear the stored OTP from session state after verification."""
+    try:
+        import streamlit as st
+        if 'fallback_otp' in st.session_state:
+            st.session_state.fallback_otp = None
+    except Exception:
+        pass
+
+
+def display_fallback_otp():
+    """Display the stored OTP in the UI if exists and not expired."""
+    try:
+        import streamlit as st
+        
+        if 'fallback_otp' not in st.session_state or not st.session_state.fallback_otp:
+            return False
+        
+        otp_data = st.session_state.fallback_otp
+        
+        # Check if expired (5 minutes)
+        stored_time = datetime.fromisoformat(otp_data['timestamp'])
+        if (datetime.now() - stored_time).seconds > 300:
+            # Clear expired OTP
+            st.session_state.fallback_otp = None
+            return False
+        
+        risk_html = ''
+        if otp_data.get('risk_score'):
+            risk_score = otp_data['risk_score']
+            risk_class = 'risk-low' if risk_score < 30 else 'risk-med' if risk_score < 70 else 'risk-high'
+            risk_html = f'<span class="{risk_class}" style="background: #f0f4ff; padding: 4px 12px; border-radius: 20px;">Risk: {risk_score:.0f}</span>'
         
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                    border-radius: 16px; 
-                    padding: 1.5rem; 
-                    margin: 1rem 0;
+                    border-radius: 20px; 
+                    padding: 1.8rem; 
+                    margin: 1.5rem 0;
                     border: 2px solid #667eea;
-                    text-align: center;">
-            <div style="font-size: 0.9rem; color: #a0aec0; margin-bottom: 0.5rem;">
-                📧 Email delivery pending — use this code instead
+                    text-align: center;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 0.5rem;">
+                <span style="font-size: 1rem;">📧</span>
+                <span style="font-size: 0.85rem; color: #a0aec0;">Email delivery in progress — use this code now</span>
             </div>
-            <div style="font-size: 2.5rem; 
+            <div style="font-size: 3rem; 
                         font-weight: 800; 
-                        letter-spacing: 8px;
+                        letter-spacing: 12px;
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                         -webkit-background-clip: text;
                         -webkit-text-fill-color: transparent;
-                        margin: 0.5rem 0;">
-                {code}
+                        margin: 0.8rem 0;
+                        font-family: monospace;">
+                {otp_data['code']}
             </div>
-            <div style="font-size: 0.85rem; color: #718096;">
-                Valid for <strong>5 minutes</strong> • {risk_html}
+            <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 0.5rem;">
+                <span style="font-size: 0.8rem; color: #718096;">⏱️ Valid for 5 minutes</span>
+                {risk_html}
+            </div>
+            <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(102,126,234,0.1); border-radius: 10px;">
+                <span style="font-size: 0.75rem; color: #a0aec0;">📧 Code also sent to: {otp_data['email']}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Add countdown timer JavaScript
+        st.markdown("""
+        <div id="otp-timer" style="text-align: center; font-size: 0.8rem; color: #f59e0b; margin-top: -0.5rem; margin-bottom: 1rem;">
+            ⏳ Expires in: <span id="timer-seconds">300</span> seconds
+        </div>
+        <script>
+            let timeLeft = 300;
+            const timerElement = document.getElementById('timer-seconds');
+            if (timerElement) {
+                const interval = setInterval(() => {
+                    timeLeft--;
+                    if (timerElement) timerElement.textContent = timeLeft;
+                    if (timeLeft <= 0) {
+                        clearInterval(interval);
+                        if (timerElement) timerElement.textContent = 'Expired';
+                    }
+                }, 1000);
+            }
+        </script>
+        """, unsafe_allow_html=True)
+        
+        return True
+        
     except Exception as e:
-        print(f"UI fallback error: {e}")
+        print(f"Display error: {e}")
+        return False
 
 
 def _print_otp(name, email, code):
