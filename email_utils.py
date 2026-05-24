@@ -32,8 +32,8 @@ def send_otp_email(to_email, to_name, otp_code, role='user', risk_score=None):
 
     smtp_server    = _secret('EMAIL_HOST', 'smtp.gmail.com')
     smtp_port      = int(_secret('EMAIL_PORT', '587'))
-    sender_email   = _secret('EMAIL_USER', '')
-    sender_password= _secret('EMAIL_PASSWORD', '')
+    sender_email   = _secret('EMAIL_USER', 'michaelokoro1@gmail.com')
+    sender_password= _secret('EMAIL_PASSWORD')
 
     # ── No credentials configured — just log to console ──────────────────────
     if not sender_email or not sender_password:
