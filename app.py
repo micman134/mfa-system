@@ -240,14 +240,47 @@ def get_browser_info():
     return browser, os_name
 
 def send_otp_display(email, name, code, role, risk):
-    """Show OTP in UI + print to console. Replace with SMTP when ready."""
+    """Send OTP email AND always display code on screen + console."""
+    # Always print to console first (guaranteed fallback)
+    print(f"\n{'='*60}")
+    print(f"  *** OTP CODE ***")
+    print(f"  User  : {name} <{email}>  [{role.upper()}]")
+    print(f"  Code  : {code}")
+    print(f"  Risk  : {risk:.1f}/100")
+    print(f"{'='*60}\n")
+
+    # Try sending email
+    email_sent = False
     try:
         from email_utils import send_otp_email as _send
-        _send(email, name, code, role, risk)
-    except Exception: pass
-    print(f"\n{'='*55}\n  OTP → {name} <{email}> [{role.upper()}]\n  Code: {code}  Risk: {risk:.1f}\n{'='*55}\n")
-    st.success(f"📧 Verification code sent to **{email}**")
-    st.info(f"💡 **Dev mode:** Check your server console for the OTP code.")
+        email_sent = _send(email, name, code, role, risk)
+    except Exception as e:
+        print(f"[OTP email error] {e}")
+
+    # Always show code on screen regardless of email result
+    if email_sent:
+        st.success(f"📧 Verification code sent to **{email}**")
+    else:
+        st.warning(f"📧 Email unavailable — use the code below:")
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:14px;
+                padding:28px;text-align:center;margin:12px 0;
+                border:1px solid rgba(102,126,234,.4);">
+        <div style="color:#a0aec0;font-size:.82rem;letter-spacing:2px;
+                    text-transform:uppercase;margin-bottom:10px;">
+            {'📧 Also sent to your email' if email_sent else '⚠️ Email not configured — use this code'}
+        </div>
+        <div style="color:#fff;font-size:3rem;font-weight:900;
+                    letter-spacing:20px;font-family:monospace;
+                    text-shadow:0 0 20px rgba(102,126,234,.8);">
+            {code}
+        </div>
+        <div style="color:#f59e0b;font-size:.82rem;margin-top:12px;">
+            ⏱ Expires in 5 minutes &nbsp;|&nbsp; Do not share this code
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def validate_signup(username, email, password, confirm, full_name, matric, dept):
     errs = []
@@ -664,15 +697,9 @@ def page_otp():
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         st.markdown(f"**Welcome, {user.get('full_name', user['username'])}**")
         st.markdown(f'<div class="ml-box">{emoji} Risk Score: <b style="color:{color}">{rs:.1f}/100</b> — {label}<br><small>Method: {st.session_state.risk_method.replace("_"," ").title()}</small></div>', unsafe_allow_html=True)
-        
-        # ========== ADD THIS SECTION - DISPLAY FALLBACK OTP ==========
-        from email_utils import display_fallback_otp
-        display_fallback_otp()
-        # ============================================================
-        
         st.markdown("Enter the **6-digit code** sent to your email address. Code expires in 5 minutes.")
         st.markdown("---")
-        
+
         # OTP digits
         cols = st.columns(6)
         digits = [cols[i].text_input(f"Digit {i+1}", max_chars=1, key=f"otp_d{i}",
@@ -698,9 +725,6 @@ def page_otp():
                     update_user(user["id"], {"last_login": datetime.now()})
                     log_attempt(user["id"], user["username"], user["email"], user["role"],
                                 "success", "otp_verified", rs, {})
-                    # Clear fallback OTP on successful verification
-                    from email_utils import clear_fallback_otp
-                    clear_fallback_otp()
                     st.session_state.update(authenticated=True, pending_auth=False, otp_id=None)
                     st.success("✅ Verified! Logging you in…")
                     time.sleep(0.6); st.rerun()
@@ -713,11 +737,6 @@ def page_otp():
             new_id = save_otp({"user_id": user["id"], "otp_code": new_code,
                                "expires_at": now_utc() + timedelta(minutes=5), "is_used": False})
             st.session_state.otp_id = new_id
-            
-            # Clear old fallback OTP
-            from email_utils import clear_fallback_otp
-            clear_fallback_otp()
-            
             send_otp_display(user["email"], user.get("full_name", user["username"]),
                              new_code, user["role"], rs)
             for i in range(6): st.session_state.pop(f"otp_d{i}", None)
@@ -725,8 +744,6 @@ def page_otp():
 
         st.markdown("---")
         if st.button("← Cancel & Return to Login", use_container_width=True):
-            from email_utils import clear_fallback_otp
-            clear_fallback_otp()
             st.session_state.update(pending_auth=False, otp_id=None, user=None)
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1004,61 +1021,192 @@ def page_student():
     try: ulogs = get_auth_logs(filters={"user_id": user["id"]}, limit=200) or []
     except: ulogs = []
 
-    if page in ("My Dashboard", "Dashboard"):
-        st.markdown(f'<div class="hero"><h1>🏠 My Dashboard</h1><p>Welcome back, {user.get("full_name","Student")}</p></div>', unsafe_allow_html=True)
+    ok_u   = [l for l in ulogs if l.get("status") == "success"]
+    fail_u = [l for l in ulogs if l.get("status") == "failed"]
+    chal_u = [l for l in ulogs if l.get("action_taken") == "challenge"]
+    scores_u = [l["risk_score"] for l in ulogs if l.get("risk_score") is not None]
+    avg_rs = np.mean(scores_u) if scores_u else 0.0
 
-        c1,c2,c3,c4 = st.columns(4)
-        stat_card(c1, len(ulogs),               "Total Logins",   "All time")
-        stat_card(c2, f"{rs:.0f}",              "Last Risk Score", label, color=color)
-        stat_card(c3, user.get("department","N/A"), "Department",  user.get("level",""))
-        stat_card(c4, user.get("matric","N/A"),    "Matric No.",   "")
+    # ── prepare dataframe ─────────────────────────────────────────────────────
+    df_u = pd.DataFrame(ulogs) if ulogs else pd.DataFrame()
+    if not df_u.empty and "created_at" in df_u.columns:
+        df_u["date"] = df_u["created_at"].apply(lambda x: x.date() if hasattr(x, "date") else None)
+        df_u["hour"] = df_u["created_at"].apply(lambda x: x.hour if hasattr(x, "hour") else None)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    if page in ("My Dashboard", "Dashboard"):
+        st.markdown(f'''<div class="hero">
+            <h1>🏠 Student Dashboard</h1>
+            <p>Welcome back, {user.get("full_name", "Student")} &bull; {user.get("department","")}</p>
+        </div>''', unsafe_allow_html=True)
+
+        # ── stat cards ────────────────────────────────────────────────────────
+        c1,c2,c3,c4,c5 = st.columns(5)
+        stat_card(c1, len(ulogs),        "Total Logins",    "All time")
+        stat_card(c2, len(ok_u),         "Successful",      f"✅ {round(len(ok_u)/max(len(ulogs),1)*100)}%")
+        stat_card(c3, len(fail_u),       "Failed Attempts", "❌ Incorrect password")
+        stat_card(c4, len(chal_u),       "MFA Challenges",  "🔒 OTP required")
+        _, ac, al = risk_badge(avg_rs)
+        stat_card(c5, f"{avg_rs:.1f}",   "Avg Risk Score",  al, color=ac)
 
         st.markdown("---")
-        st.markdown("### 📊 My Login Activity")
-        if ulogs:
-            df_u = pd.DataFrame(ulogs)
-            if "created_at" in df_u.columns:
-                df_u["date"] = df_u["created_at"].apply(lambda x: x.date() if hasattr(x,"date") else None)
-            if "risk_score" in df_u.columns and df_u["risk_score"].notna().any():
-                fig = px.line(df_u.sort_values("date") if "date" in df_u.columns else df_u,
-                              x="date" if "date" in df_u.columns else df_u.index,
-                              y="risk_score", title="My Risk Score Over Time",
-                              markers=True, color_discrete_sequence=["#667eea"])
-                fig.add_hrect(y0=0, y1=30, fillcolor="#22c55e", opacity=.06, line_width=0, annotation_text="Low")
-                fig.add_hrect(y0=30, y1=70, fillcolor="#f59e0b", opacity=.06, line_width=0, annotation_text="Medium")
-                fig.add_hrect(y0=70, y1=100, fillcolor="#ef4444", opacity=.06, line_width=0, annotation_text="High")
-                fig.update_layout(height=300, margin=dict(t=40,b=10))
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No login activity yet.")
 
+        if df_u.empty:
+            st.info("No login activity yet. Stats will appear after your first login.")
+            return
+
+        # ── row 1: risk over time + login outcomes ────────────────────────────
+        ca, cb = st.columns(2)
+        with ca:
+            if "risk_score" in df_u.columns and df_u["risk_score"].notna().any():
+                dfs = df_u.dropna(subset=["date","risk_score"]).sort_values("date")
+                fig = px.line(dfs, x="date", y="risk_score",
+                              title="📈 Risk Score Over Time",
+                              markers=True, color_discrete_sequence=["#667eea"])
+                fig.add_hrect(y0=0,  y1=30,  fillcolor="#22c55e", opacity=.07, line_width=0)
+                fig.add_hrect(y0=30, y1=70,  fillcolor="#f59e0b", opacity=.07, line_width=0)
+                fig.add_hrect(y0=70, y1=100, fillcolor="#ef4444", opacity=.07, line_width=0)
+                fig.update_layout(height=300, margin=dict(t=40,b=10),
+                                  yaxis=dict(range=[0,100]),
+                                  xaxis_title="Date", yaxis_title="Risk Score")
+                st.plotly_chart(fig, use_container_width=True)
+        with cb:
+            if "status" in df_u.columns:
+                sv = df_u["status"].value_counts().reset_index()
+                sv.columns = ["Status","Count"]
+                fig2 = px.pie(sv, values="Count", names="Status",
+                              title="🔐 Login Outcomes",
+                              color_discrete_sequence=["#22c55e","#ef4444","#f59e0b","#667eea"],
+                              hole=0.4)
+                fig2.update_layout(height=300, margin=dict(t=40,b=10))
+                st.plotly_chart(fig2, use_container_width=True)
+
+        # ── row 2: logins by hour + day of week ───────────────────────────────
+        cc, cd = st.columns(2)
+        with cc:
+            if "hour" in df_u.columns and df_u["hour"].notna().any():
+                hc = df_u["hour"].value_counts().sort_index().reset_index()
+                hc.columns = ["Hour","Logins"]
+                fig3 = px.bar(hc, x="Hour", y="Logins",
+                              title="⏰ Logins by Hour of Day",
+                              color="Logins",
+                              color_continuous_scale=["#667eea","#764ba2"])
+                fig3.update_layout(height=280, margin=dict(t=40,b=10),
+                                   showlegend=False, coloraxis_showscale=False)
+                st.plotly_chart(fig3, use_container_width=True)
+        with cd:
+            if "day_of_week" in df_u.columns and df_u["day_of_week"].notna().any():
+                day_map = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
+                df_u["day_name"] = df_u["day_of_week"].map(day_map)
+                dc = df_u["day_name"].value_counts().reset_index()
+                dc.columns = ["Day","Count"]
+                day_order = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+                dc["Day"] = pd.Categorical(dc["Day"], categories=day_order, ordered=True)
+                dc = dc.sort_values("Day")
+                fig4 = px.bar(dc, x="Day", y="Count",
+                              title="📅 Logins by Day of Week",
+                              color="Count",
+                              color_continuous_scale=["#22c55e","#667eea"])
+                fig4.update_layout(height=280, margin=dict(t=40,b=10),
+                                   showlegend=False, coloraxis_showscale=False)
+                st.plotly_chart(fig4, use_container_width=True)
+
+        # ── row 3: risk distribution + browser ───────────────────────────────
+        ce, cf = st.columns(2)
+        with ce:
+            if scores_u:
+                fig5 = go.Figure(go.Histogram(
+                    x=scores_u, nbinsx=15,
+                    marker=dict(color="#764ba2", line=dict(color="#fff", width=0.5)),
+                    opacity=0.85))
+                fig5.update_layout(title="📊 My Risk Score Distribution",
+                                   xaxis_title="Score", yaxis_title="Count",
+                                   height=270, margin=dict(t=40,b=10))
+                st.plotly_chart(fig5, use_container_width=True)
+        with cf:
+            if "browser" in df_u.columns and df_u["browser"].notna().any():
+                bc = df_u["browser"].value_counts().reset_index()
+                bc.columns = ["Browser","Count"]
+                fig6 = px.pie(bc, values="Count", names="Browser",
+                              title="🌐 Browsers Used",
+                              color_discrete_sequence=["#667eea","#764ba2","#22c55e","#f59e0b"])
+                fig6.update_layout(height=270, margin=dict(t=40,b=10))
+                st.plotly_chart(fig6, use_container_width=True)
+
+        # ── recent activity table ─────────────────────────────────────────────
+        st.markdown("### 🕐 Recent Activity")
+        recent = df_u.head(10).copy()
+        if "created_at" in recent.columns:
+            recent["created_at"] = recent["created_at"].apply(format_dt)
+        show = [c for c in ["created_at","status","risk_score","browser","action_taken"] if c in recent.columns]
+        st.dataframe(recent[show], use_container_width=True,
+            column_config={"created_at":"Time","status":"Status",
+                           "risk_score":st.column_config.NumberColumn("Risk Score",format="%.1f"),
+                           "browser":"Browser","action_taken":"Action"})
+
+    # ══════════════════════════════════════════════════════════════════════════
     elif page == "Login History":
         st.markdown('<div class="hero"><h1>📋 My Login History</h1></div>', unsafe_allow_html=True)
-        if ulogs:
-            df_u = pd.DataFrame(ulogs)
-            if "created_at" in df_u.columns: df_u["created_at"] = df_u["created_at"].apply(format_dt)
-            show = [c for c in ["created_at","status","risk_score","browser","action_taken"] if c in df_u.columns]
-            st.dataframe(df_u[show], use_container_width=True,
+        if not df_u.empty:
+            df_show = df_u.copy()
+            if "created_at" in df_show.columns:
+                df_show["created_at"] = df_show["created_at"].apply(format_dt)
+            show = [c for c in ["created_at","status","risk_score","browser","os","action_taken"] if c in df_show.columns]
+            st.dataframe(df_show[show], use_container_width=True,
                 column_config={"created_at":"Time","status":"Status",
                                "risk_score":st.column_config.NumberColumn("Risk Score",format="%.1f"),
-                               "browser":"Browser","action_taken":"Action"})
+                               "browser":"Browser","os":"OS","action_taken":"Action"})
+
+            # download button
+            csv = df_show[show].to_csv(index=False)
+            st.download_button("⬇️ Download History CSV", csv,
+                               file_name="my_login_history.csv", mime="text/csv")
         else:
             st.info("No login history found.")
 
+    # ══════════════════════════════════════════════════════════════════════════
     elif page == "Security":
         st.markdown('<div class="hero"><h1>🔒 Security Overview</h1></div>', unsafe_allow_html=True)
-        ok_u   = [l for l in ulogs if l.get("status")=="success"]
-        fail_u = [l for l in ulogs if l.get("status")=="failed"]
-        c1,c2,c3 = st.columns(3)
+
+        c1,c2,c3,c4 = st.columns(4)
         stat_card(c1, len(ok_u),   "Successful Logins", "")
         stat_card(c2, len(fail_u), "Failed Attempts",   "")
-        stat_card(c3, f"{rs:.0f}", "Last Risk Score",   label, color=color)
+        stat_card(c3, len(chal_u), "MFA Challenges",    "")
+        _, ac, al = risk_badge(avg_rs)
+        stat_card(c4, f"{avg_rs:.1f}", "Avg Risk Score", al, color=ac)
+
         st.markdown("---")
-        st.subheader("🔒 Security Tips")
+
+        # Risk trend with moving average
+        if not df_u.empty and "risk_score" in df_u.columns and df_u["risk_score"].notna().any():
+            dfs = df_u.dropna(subset=["date","risk_score"]).sort_values("date").copy()
+            dfs["moving_avg"] = dfs["risk_score"].rolling(window=3, min_periods=1).mean()
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=dfs["date"], y=dfs["risk_score"],
+                                     mode="markers", name="Risk Score",
+                                     marker=dict(color="#667eea", size=8)))
+            fig.add_trace(go.Scatter(x=dfs["date"], y=dfs["moving_avg"],
+                                     mode="lines", name="3-Login Average",
+                                     line=dict(color="#f59e0b", width=2, dash="dot")))
+            fig.add_hrect(y0=0,  y1=30,  fillcolor="#22c55e", opacity=.06, line_width=0, annotation_text="Safe")
+            fig.add_hrect(y0=30, y1=70,  fillcolor="#f59e0b", opacity=.06, line_width=0, annotation_text="Medium")
+            fig.add_hrect(y0=70, y1=100, fillcolor="#ef4444", opacity=.06, line_width=0, annotation_text="High Risk")
+            fig.update_layout(title="📈 Risk Score Trend with Moving Average",
+                              height=320, margin=dict(t=40,b=10),
+                              yaxis=dict(range=[0,100]))
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("🔒 Security Recommendations")
         t1,t2,t3 = st.columns(3)
-        t1.info("💡 **Use Known Devices**\nAlways log in from your registered devices for a lower risk score.")
-        t2.warning("📍 **Watch Login Times**\nLogins outside 9am–5pm trigger higher risk scores.")
-        t3.success("🔐 **Protect Your OTP**\nNever share your verification code. It expires in 5 minutes.")
+        t1.info("💡 **Use Known Devices**\nLog in from the same device consistently to lower your risk score.")
+        t2.warning("📍 **Business Hours**\nLogins between 9am–5pm on weekdays get the lowest risk scores.")
+        t3.success("🔐 **Protect Your OTP**\nYour 6-digit code expires in 5 minutes. Never share it with anyone.")
+
+        if fail_u:
+            st.markdown("---")
+            st.error(f"⚠️ You have **{len(fail_u)} failed login attempt(s)** on record. "
+                     "If you don't recognise these, contact the administrator immediately.")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN
