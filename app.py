@@ -34,154 +34,378 @@ from risk_engine import risk_engine
 # ═══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-/* ── fonts & base ── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+/* ══════════════════════════════════════════════════════════
+   EDUAUTH — MODERN ACADEMIC SECURITY SYSTEM
+   Design: Clean dark-glass with electric cyan accent
+   Font: Syne (display) + DM Sans (body)
+   Theme: Deep navy bg · Glass cards · Neon accents · Sharp grid
+══════════════════════════════════════════════════════════ */
 
-/* ── hide default streamlit chrome ── */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── CSS Variables ── */
+:root {
+    --bg:        #070b14;
+    --surface:   #0d1424;
+    --card:      rgba(13,20,36,0.85);
+    --border:    rgba(0,229,255,0.12);
+    --accent:    #00e5ff;
+    --accent2:   #7c3aed;
+    --accent3:   #10b981;
+    --danger:    #ef4444;
+    --warn:      #f59e0b;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --heading:   #f8fafc;
+    --glow:      rgba(0,229,255,0.18);
+}
+
+/* ── Base ── */
 #MainMenu, footer, header { visibility: hidden; }
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--bg) !important;
+    color: var(--text);
+}
+.main .block-container {
+    padding-top: 1.5rem !important;
+    max-width: 1280px;
+}
 
-/* ── hero header ── */
+/* ── Animated page background ── */
+.stApp {
+    background:
+        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(0,229,255,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(124,58,237,0.08) 0%, transparent 60%),
+        var(--bg) !important;
+}
+
+/* ── HERO BANNER ── */
 .hero {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
-    border-radius: 16px; padding: 2.5rem 2rem; text-align: center;
-    margin-bottom: 2rem; position: relative; overflow: hidden;
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #0d1424 0%, #0a1628 50%, #0d1424 100%);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 3rem 2rem 2.5rem;
+    text-align: center; margin-bottom: 2rem;
 }
 .hero::before {
-    content: ""; position: absolute; top: -50%; left: -50%;
-    width: 200%; height: 200%;
-    background: radial-gradient(circle, rgba(102,126,234,.15) 0%, transparent 60%);
-    animation: pulse 4s ease-in-out infinite;
+    content: "";
+    position: absolute; inset: 0;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(0,229,255,0.12) 0%, transparent 55%),
+        repeating-linear-gradient(90deg, rgba(0,229,255,0.03) 0px, rgba(0,229,255,0.03) 1px, transparent 1px, transparent 60px),
+        repeating-linear-gradient(0deg,  rgba(0,229,255,0.03) 0px, rgba(0,229,255,0.03) 1px, transparent 1px, transparent 60px);
+    pointer-events: none;
 }
-@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
-.hero h1 { color: #fff; font-size: 2.2rem; font-weight: 700; margin: 0; letter-spacing: -.5px; }
-.hero p  { color: rgba(255,255,255,.7); margin: .6rem 0 0; font-size: 1rem; }
+.hero::after {
+    content: "";
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 300px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+.hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.6rem; font-weight: 800;
+    color: var(--heading); margin: 0; letter-spacing: -1px;
+    text-shadow: 0 0 40px rgba(0,229,255,0.3);
+}
+.hero h1 span { color: var(--accent); }
+.hero p {
+    color: var(--muted); margin: .7rem 0 0;
+    font-size: 1rem; font-weight: 300; letter-spacing: .3px;
+}
 .hero-badge {
-    display: inline-block; margin-top: 1rem;
-    background: rgba(102,126,234,.3); border: 1px solid rgba(102,126,234,.5);
-    color: #a0aec0; padding: .3rem 1rem; border-radius: 20px; font-size: .8rem;
+    display: inline-flex; align-items: center; gap: .4rem;
+    margin-top: 1.2rem;
+    background: rgba(0,229,255,0.07);
+    border: 1px solid rgba(0,229,255,0.25);
+    color: var(--accent); padding: .35rem 1.1rem;
+    border-radius: 20px; font-size: .78rem; font-weight: 500;
+    letter-spacing: .5px; text-transform: uppercase;
 }
 
-/* ── auth cards ── */
+/* ── AUTH CARD (login/signup/otp) ── */
 .auth-card {
-    background: #fff; border-radius: 16px; padding: 2.2rem;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,.07), 0 20px 60px -10px rgba(0,0,0,.12);
-    border: 1px solid #f0f0f0;
+    background: var(--card);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 2.4rem;
+    box-shadow: 0 0 0 1px rgba(0,229,255,0.04),
+                0 24px 64px rgba(0,0,0,0.5),
+                inset 0 1px 0 rgba(255,255,255,0.04);
+    margin-bottom: 1rem;
 }
-.auth-card h2 { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; margin: 0 0 .3rem; }
-.auth-card .sub { color: #718096; font-size: .9rem; margin: 0 0 1.5rem; }
-
-/* ── tab pills (login page) ── */
-.tab-pills { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
-.tab-pill {
-    flex: 1; padding: .6rem; border-radius: 8px; text-align: center;
-    font-weight: 600; font-size: .9rem; cursor: pointer; border: 2px solid #e2e8f0;
-    color: #718096; background: #f8fafc; transition: all .2s;
+.auth-card h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.5rem; font-weight: 700;
+    color: var(--heading); margin: 0 0 .3rem;
 }
-.tab-pill.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+.auth-card .sub { color: var(--muted); font-size: .88rem; margin: 0 0 1.5rem; }
 
-/* ── stat cards ── */
+/* ── STAT CARDS ── */
 .stat-card {
-    background: #fff; border-radius: 12px; padding: 1.3rem 1.1rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
-    border: 1px solid #f0f4ff; margin-bottom: 1rem; text-align: center;
-    transition: transform .2s, box-shadow .2s;
+    position: relative; overflow: hidden;
+    background: var(--card);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.4rem 1.2rem;
+    text-align: center; margin-bottom: 1rem;
+    transition: transform .25s, border-color .25s, box-shadow .25s;
+    cursor: default;
 }
-.stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,.1); }
-.stat-card .val  { font-size: 2rem; font-weight: 700; color: #1a1a2e; margin: 0; }
-.stat-card .lbl  { color: #718096; font-size: .82rem; margin: .3rem 0 0; font-weight: 500; }
-.stat-card .sub  { color: #a0aec0; font-size: .75rem; margin-top: .2rem; }
+.stat-card::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0; transition: opacity .3s;
+}
+.stat-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0,229,255,0.3);
+    box-shadow: 0 0 30px rgba(0,229,255,0.08), 0 16px 40px rgba(0,0,0,0.3);
+}
+.stat-card:hover::before { opacity: 1; }
+.stat-card .val {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem; font-weight: 800;
+    color: var(--heading); margin: 0; line-height: 1;
+}
+.stat-card .lbl {
+    color: var(--muted); font-size: .78rem;
+    margin: .5rem 0 0; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .8px;
+}
+.stat-card .sub { color: var(--accent); font-size: .72rem; margin-top: .25rem; }
 
-/* ── risk colours ── */
-.risk-low  { color: #22c55e !important; }
+/* ── SECTION TITLE ── */
+.section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem; font-weight: 700; color: var(--heading);
+    letter-spacing: .5px; text-transform: uppercase;
+    margin: 1.8rem 0 1rem; display: flex; align-items: center; gap: .6rem;
+}
+.section-title::after {
+    content: ""; flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* ── ML INFO BOX ── */
+.ml-box {
+    background: rgba(0,229,255,0.05);
+    border: 1px solid rgba(0,229,255,0.2);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: .8rem 1.1rem;
+    font-size: .84rem; color: var(--text); margin: .8rem 0;
+}
+
+/* ── INFO ALERT ── */
+.info-alert {
+    background: rgba(124,58,237,0.1);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 10px; padding: .8rem 1.1rem;
+    color: #c4b5fd; font-size: .86rem;
+}
+
+/* ── RISK COLOURS ── */
+.risk-low  { color: #10b981 !important; }
 .risk-med  { color: #f59e0b !important; }
 .risk-high { color: #ef4444 !important; }
 
-/* ── role badges ── */
+/* ── ROLE BADGES ── */
 .badge {
-    display: inline-block; padding: .2rem .75rem; border-radius: 20px;
-    font-size: .75rem; font-weight: 700; letter-spacing: .3px;
+    display: inline-block; padding: .2rem .8rem;
+    border-radius: 6px; font-size: .72rem;
+    font-weight: 600; letter-spacing: .5px;
+    text-transform: uppercase;
 }
-.badge-admin   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-.badge-student { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.badge-admin   { background: rgba(239,68,68,.15);  color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+.badge-student { background: rgba(16,185,129,.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,.3); }
 
-/* ── sidebar ── */
+/* ── SIDEBAR ── */
 section[data-testid="stSidebar"] > div:first-child {
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    padding-top: 1.5rem;
+    background: #070b14 !important;
+    border-right: 1px solid rgba(0,229,255,0.08) !important;
+    padding-top: 1rem;
 }
-section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
-section[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.1) !important; }
-section[data-testid="stSidebar"] .stRadio label { 
-    padding: .4rem .6rem; border-radius: 8px; transition: background .15s;
+section[data-testid="stSidebar"] * { color: var(--text) !important; }
+section[data-testid="stSidebar"] hr { border-color: rgba(0,229,255,0.08) !important; }
+section[data-testid="stSidebar"] .stRadio > div { gap: 2px !important; }
+section[data-testid="stSidebar"] .stRadio label {
+    padding: .55rem .8rem !important; border-radius: 10px !important;
+    transition: background .15s, color .15s;
+    font-size: .88rem !important; font-weight: 500 !important;
+    border: 1px solid transparent !important;
 }
-section[data-testid="stSidebar"] .stRadio label:hover { background: rgba(255,255,255,.08); }
-.sidebar-user { text-align: center; padding: 1rem .5rem; }
+section[data-testid="stSidebar"] .stRadio label:hover {
+    background: rgba(0,229,255,0.07) !important;
+    border-color: rgba(0,229,255,0.15) !important;
+}
+
+/* ── SIDEBAR USER PANEL ── */
+.sidebar-user { text-align: center; padding: .8rem .5rem 1.2rem; }
 .sidebar-avatar {
-    width: 56px; height: 56px; border-radius: 50%;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(135deg, #00e5ff22, #7c3aed33);
+    border: 2px solid rgba(0,229,255,0.4);
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.4rem; margin: 0 auto .6rem; font-weight: 700; color: white;
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem; font-weight: 800;
+    margin: 0 auto .8rem; color: var(--accent);
+    box-shadow: 0 0 20px rgba(0,229,255,0.15);
 }
-.sidebar-name { font-weight: 600; font-size: 1rem; color: #fff !important; }
-.sidebar-role { font-size: .75rem; color: #a0aec0 !important; margin-top: .2rem; }
-.sidebar-risk { 
-    font-size: .78rem; margin-top: .5rem; padding: .3rem .8rem;
-    background: rgba(255,255,255,.08); border-radius: 20px; display: inline-block;
+.sidebar-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: .95rem; color: var(--heading) !important;
 }
-
-/* ── logout button ── */
-.stButton button[kind="secondary"], 
-div[data-testid="stSidebar"] .stButton button {
-    background: rgba(239,68,68,.12) !important;
-    border: 1px solid rgba(239,68,68,.3) !important;
-    color: #fca5a5 !important; border-radius: 8px !important;
-    font-weight: 600 !important; transition: all .2s !important;
-}
-div[data-testid="stSidebar"] .stButton button:hover {
-    background: rgba(239,68,68,.25) !important;
-    border-color: #ef4444 !important; color: #fff !important;
+.sidebar-role { font-size: .72rem; color: var(--muted) !important; margin-top: .2rem; letter-spacing: .5px; text-transform: uppercase; }
+.sidebar-risk {
+    font-size: .75rem; margin-top: .7rem;
+    padding: .3rem .9rem;
+    background: rgba(0,229,255,0.07);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 20px; display: inline-block;
+    letter-spacing: .3px;
 }
 
-/* ── primary buttons ── */
-.stButton > button[data-baseweb="button"] {
-    border-radius: 8px !important; font-weight: 600 !important;
+/* ── BUTTONS ── */
+.stButton > button {
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 600 !important; border-radius: 10px !important;
+    transition: all .2s !important; letter-spacing: .2px !important;
+}
+/* Primary button */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #00b4cc, #0088a8) !important;
+    border: none !important; color: #fff !important;
+    box-shadow: 0 4px 20px rgba(0,229,255,0.25) !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #00e5ff, #00b4cc) !important;
+    box-shadow: 0 6px 28px rgba(0,229,255,0.4) !important;
+    transform: translateY(-1px) !important;
+}
+/* Logout button in sidebar */
+div[data-testid="stSidebar"] .stButton > button {
+    background: rgba(239,68,68,0.1) !important;
+    border: 1px solid rgba(239,68,68,0.25) !important;
+    color: #fca5a5 !important;
+}
+div[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(239,68,68,0.2) !important;
+    border-color: var(--danger) !important; color: #fff !important;
 }
 
-/* ── OTP boxes ── */
-.otp-row input {
-    text-align: center !important; font-size: 1.6rem !important;
-    font-weight: 700 !important; letter-spacing: .2rem !important;
+/* ── INPUTS ── */
+.stTextInput > div > div > input,
+.stSelectbox > div > div > div,
+.stNumberInput > div > div > input {
+    background: rgba(13,20,36,0.8) !important;
+    border: 1px solid rgba(0,229,255,0.15) !important;
+    border-radius: 10px !important; color: var(--text) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    transition: border-color .2s, box-shadow .2s !important;
+}
+.stTextInput > div > div > input:focus {
+    border-color: rgba(0,229,255,0.5) !important;
+    box-shadow: 0 0 0 3px rgba(0,229,255,0.08) !important;
+    outline: none !important;
+}
+.stTextInput label, .stSelectbox label, .stNumberInput label {
+    color: var(--muted) !important; font-size: .82rem !important;
+    font-weight: 500 !important; letter-spacing: .3px !important;
 }
 
-/* ── ml info box ── */
-.ml-box {
-    background: linear-gradient(135deg, #f0f4ff, #faf5ff);
-    border-left: 4px solid #667eea; border-radius: 0 8px 8px 0;
-    padding: .8rem 1rem; font-size: .85rem; margin: .8rem 0;
-    color: #4a5568;
+/* ── DATAFRAME ── */
+.stDataFrame { border-radius: 12px !important; overflow: hidden; }
+.stDataFrame > div { border: 1px solid var(--border) !important; border-radius: 12px !important; }
+[data-testid="stDataFrameResizable"] th {
+    background: rgba(0,229,255,0.05) !important;
+    color: var(--accent) !important; font-size: .75rem !important;
+    letter-spacing: .5px !important; text-transform: uppercase !important;
+    border-bottom: 1px solid var(--border) !important;
+}
+[data-testid="stDataFrameResizable"] td {
+    color: var(--text) !important; font-size: .83rem !important;
+    border-bottom: 1px solid rgba(0,229,255,0.05) !important;
 }
 
-/* ── section headers ── */
-.section-title {
-    font-size: 1.1rem; font-weight: 700; color: #1a1a2e;
-    margin: 1.5rem 0 .8rem; padding-bottom: .4rem;
-    border-bottom: 2px solid #f0f4ff;
+/* ── EXPANDER ── */
+div[data-testid="stExpander"] {
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stExpander"] summary {
+    color: var(--text) !important; font-weight: 600 !important;
 }
 
-/* ── risk meter ── */
-.risk-meter-wrap { text-align: center; padding: .5rem; }
-.risk-meter-val { font-size: 3rem; font-weight: 800; margin: 0; }
-.risk-meter-lbl { font-size: .9rem; color: #718096; margin-top: -.2rem; }
-
-/* ── info alert ── */
-.info-alert {
-    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
-    padding: .8rem 1rem; color: #1e40af; font-size: .88rem;
+/* ── FORM ── */
+div[data-testid="stForm"] {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 16px !important; padding: 1.5rem !important;
 }
 
-/* hide streamlit's own expander arrow styling issues */
-div[data-testid="stExpander"] { border-radius: 10px; }
+/* ── RADIO (nav) ── */
+.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] > div:first-child > div {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+/* ── TABS override ── */
+.stTabs [data-baseweb="tab-list"] {
+    background: var(--card) !important; border-radius: 10px !important;
+    border: 1px solid var(--border) !important; padding: 4px !important;
+    gap: 4px !important;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px !important; color: var(--muted) !important;
+    font-weight: 600 !important; font-size: .85rem !important;
+}
+.stTabs [aria-selected="true"] {
+    background: rgba(0,229,255,0.12) !important;
+    color: var(--accent) !important;
+}
+
+/* ── METRICS ── */
+[data-testid="stMetric"] {
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 12px !important; padding: .9rem 1rem !important;
+}
+[data-testid="stMetricLabel"] { color: var(--muted) !important; font-size: .75rem !important; text-transform: uppercase !important; letter-spacing: .5px !important; }
+[data-testid="stMetricValue"] { color: var(--heading) !important; font-family: 'Syne', sans-serif !important; }
+
+/* ── ALERTS / TOAST ── */
+.stSuccess > div { background: rgba(16,185,129,0.1) !important; border: 1px solid rgba(16,185,129,0.3) !important; border-radius: 10px !important; color: #6ee7b7 !important; }
+.stError   > div { background: rgba(239,68,68,0.1)  !important; border: 1px solid rgba(239,68,68,0.3)  !important; border-radius: 10px !important; color: #fca5a5 !important; }
+.stWarning > div { background: rgba(245,158,11,0.1) !important; border: 1px solid rgba(245,158,11,0.3) !important; border-radius: 10px !important; color: #fcd34d !important; }
+.stInfo    > div { background: rgba(0,229,255,0.07)  !important; border: 1px solid rgba(0,229,255,0.2)  !important; border-radius: 10px !important; color: var(--accent) !important; }
+
+/* ── PLOTLY CHARTS transparent bg ── */
+.js-plotly-plot .plotly { background: transparent !important; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,229,255,0.4); }
+
+/* ── OTP digit boxes ── */
+div[class*="otp"] input, .otp-input input {
+    text-align: center !important; font-size: 1.8rem !important;
+    font-weight: 800 !important; font-family: 'Syne', sans-serif !important;
+    background: rgba(0,229,255,0.05) !important;
+    border: 2px solid rgba(0,229,255,0.2) !important;
+    border-radius: 12px !important; color: var(--accent) !important;
+}
+
+/* ── DIVIDER ── */
+hr { border-color: rgba(0,229,255,0.08) !important; }
+
+/* ── SPINNER ── */
+.stSpinner > div { border-top-color: var(--accent) !important; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -484,31 +708,31 @@ def sidebar_user_panel():
             <div class="sidebar-avatar">{initials}</div>
             <div class="sidebar-name">{user.get("full_name","User")}</div>
             <div class="sidebar-role">{user.get("department","") or user["role"].upper()}</div>
-            <div class="sidebar-risk" style="color:{color}">{emoji} Risk: {rs:.0f}/100 — {label}</div>
+            <div class="sidebar-risk" style="color:{color}">{emoji} {rs:.0f}/100 · {label}</div>
         </div>""", unsafe_allow_html=True)
         st.markdown("---")
 
         if user["role"] == "admin":
             nav = st.radio("Navigation", ["Dashboard","Students","Auth Logs","ML Engine","Risk Rules"],
                 format_func=lambda x: {
-                    "Dashboard": "📊  Dashboard",
-                    "Students":  "🎓  Students",
-                    "Auth Logs": "📋  Auth Logs",
-                    "ML Engine": "🤖  ML Engine",
-                    "Risk Rules":"⚙️   Risk Rules",
+                    "Dashboard": "  Dashboard",
+                    "Students":  "  Students",
+                    "Auth Logs": "  Auth Logs",
+                    "ML Engine": "  ML Engine",
+                    "Risk Rules":"  Risk Rules",
                 }.get(x, x), label_visibility="collapsed")
             st.session_state.nav_page = nav
         else:
             nav_s = st.radio("Menu", ["My Dashboard","Login History","Security"],
                 format_func=lambda x: {
-                    "My Dashboard":  "🏠  My Dashboard",
-                    "Login History": "📋  Login History",
-                    "Security":      "🔒  Security",
+                    "My Dashboard":  "  My Dashboard",
+                    "Login History": "  Login History",
+                    "Security":      "  Security",
                 }.get(x, x), label_visibility="collapsed")
             st.session_state.nav_page = nav_s
 
         st.markdown("---")
-        if st.button("🚪  Logout", use_container_width=True, key="logout_btn"):
+        if st.button("Logout", use_container_width=True, key="logout_btn"):
             logout()
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -518,9 +742,9 @@ def page_login():
     # Hero
     st.markdown("""
     <div class="hero">
-        <h1>🎓 EduAuth MFA System</h1>
-        <p>AI-Powered Adaptive Risk Authentication for Universities</p>
-        <span class="hero-badge">🔒 Secured with Machine Learning Risk Assessment</span>
+        <h1><span>Edu</span>Auth</h1>
+        <p>AI-Powered Multi-Factor Authentication · University Security Platform</p>
+        <span class="hero-badge">⚡ ML Risk Engine Active</span>
     </div>""", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1.6, 1])
@@ -634,8 +858,8 @@ def _do_login(identifier, password, role_val):
 def page_signup():
     st.markdown("""
     <div class="hero">
-        <h1>📝 Student Registration</h1>
-        <p>Create your university MFA account</p>
+        <h1>Create Account</h1>
+        <p>Join the university secure authentication system</p>
     </div>""", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2.2, 1])
@@ -695,8 +919,8 @@ def page_signup():
 def page_otp():
     st.markdown("""
     <div class="hero">
-        <h1>🔐 Two-Factor Verification</h1>
-        <p>Additional security step required for your login</p>
+        <h1>Verify Identity</h1>
+        <p>Two-factor authentication · Enter your one-time code</p>
     </div>""", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1.6, 1])
@@ -788,7 +1012,7 @@ def page_admin():
 
     # ── Dashboard ────────────────────────────────────────────────────────────
     if page == "Dashboard":
-        st.markdown('<div class="hero"><h1>📊 Admin Dashboard</h1><p>System Overview & Security Analytics</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>Admin Dashboard</h1><p>System Overview · Security Analytics · ML Risk Engine</p></div>', unsafe_allow_html=True)
 
         c1,c2,c3,c4,c5 = st.columns(5)
         stat_card(c1, len(users),     "Total Users",       f"🎓 {len(students)} students")
@@ -835,13 +1059,15 @@ def page_admin():
                               title="Daily Login Activity", labels={"value":"Count","date":"Date"},
                               color_discrete_sequence=["#667eea","#22c55e"])
                 fig.update_layout(height=280, margin=dict(t=40,b=10), legend_title="")
+                fig = _chart_layout(fig)
                 st.plotly_chart(fig, use_container_width=True)
         with cb:
             if scores:
                 fig2 = go.Figure(go.Histogram(x=scores, nbinsx=20,
-                    marker=dict(color="#764ba2", line=dict(color="#fff",width=.5)),opacity=.85))
+                    marker=dict(color="#7c3aed", line=dict(color="#fff",width=.5)),opacity=.85))
                 fig2.update_layout(title="Risk Score Distribution", xaxis_title="Score",
                                    yaxis_title="Count", height=280, margin=dict(t=40,b=10))
+                fig2 = _chart_layout(fig2)
                 st.plotly_chart(fig2, use_container_width=True)
 
         cc, cd = st.columns(2)
@@ -850,21 +1076,23 @@ def page_admin():
                 sv = df["status"].value_counts().reset_index()
                 sv.columns = ["Status","Count"]
                 fig3 = px.pie(sv, values="Count", names="Status", title="Login Outcomes",
-                              color_discrete_sequence=["#22c55e","#ef4444","#f59e0b","#667eea"])
+                              color_discrete_sequence=["#10b981","#ef4444","#f59e0b","#00e5ff"])
                 fig3.update_layout(height=270, margin=dict(t=40))
+                fig3 = _chart_layout(fig3)
                 st.plotly_chart(fig3, use_container_width=True)
         with cd:
             if "action_taken" in df.columns and df["action_taken"].notna().any():
                 av = df["action_taken"].value_counts().reset_index()
                 av.columns = ["Action","Count"]
                 fig4 = px.bar(av, x="Action", y="Count", title="Actions Taken",
-                              color="Action", color_discrete_sequence=["#667eea","#22c55e","#ef4444","#f59e0b"])
+                              color="Action", color_discrete_sequence=["#00e5ff","#10b981","#ef4444","#f59e0b"])
                 fig4.update_layout(height=270, margin=dict(t=40), showlegend=False)
+                fig4 = _chart_layout(fig4)
                 st.plotly_chart(fig4, use_container_width=True)
 
     # ── Students ─────────────────────────────────────────────────────────────
     elif page == "Students":
-        st.markdown('<div class="hero"><h1>🎓 Student Management</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>Student Management</h1><p>Manage registered students and accounts</p></div>', unsafe_allow_html=True)
 
         st.metric("Total Students", len(students))
 
@@ -910,7 +1138,7 @@ def page_admin():
 
     # ── Auth Logs ─────────────────────────────────────────────────────────────
     elif page == "Auth Logs":
-        st.markdown('<div class="hero"><h1>📋 Authentication Logs</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>Authentication Logs</h1><p>All login events and risk assessments</p></div>', unsafe_allow_html=True)
 
         if not auth_logs:
             st.info("No logs yet."); return
@@ -933,7 +1161,7 @@ def page_admin():
 
     # ── ML Engine ─────────────────────────────────────────────────────────────
     elif page == "ML Engine":
-        st.markdown('<div class="hero"><h1>🤖 ML Risk Engine</h1><p>Train & inspect the adaptive risk model</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>ML Risk Engine</h1><p>Train · Inspect · Predict adaptive login risk</p></div>', unsafe_allow_html=True)
 
         c1,c2,c3,c4 = st.columns(4)
         c1.metric("Random Forest",     "✅ Ready" if risk_engine.random_forest      else "❌ Untrained")
@@ -976,8 +1204,9 @@ def page_admin():
                         st.bar_chart(vc); st.caption(feat.replace("_"," ").title())
                     else:
                         fig = px.histogram(df_m, x=feat, nbins=15, title=feat.replace("_"," ").title(),
-                                           color_discrete_sequence=["#667eea"])
+                                           color_discrete_sequence=["#00e5ff"])
                         fig.update_layout(height=210, margin=dict(t=30,b=5,l=5,r=5), showlegend=False)
+                        fig = _chart_layout(fig)
                         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("---")
@@ -1015,7 +1244,7 @@ def page_admin():
 
     # ── Risk Rules ────────────────────────────────────────────────────────────
     elif page == "Risk Rules":
-        st.markdown('<div class="hero"><h1>⚙️ Risk Rules</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>Risk Rules</h1><p>Configurable rule-based security policies</p></div>', unsafe_allow_html=True)
         rules = get_risk_rules(active_only=False)
         if rules:
             df_r = pd.DataFrame(rules)
@@ -1055,7 +1284,7 @@ def page_student():
     # ══════════════════════════════════════════════════════════════════════════
     if page in ("My Dashboard", "Dashboard"):
         st.markdown(f'''<div class="hero">
-            <h1>🏠 Student Dashboard</h1>
+            <h1>Student Dashboard</h1>
             <p>Welcome back, {user.get("full_name", "Student")} &bull; {user.get("department","")}</p>
         </div>''', unsafe_allow_html=True)
 
@@ -1081,13 +1310,14 @@ def page_student():
                 dfs = df_u.dropna(subset=["date","risk_score"]).sort_values("date")
                 fig = px.line(dfs, x="date", y="risk_score",
                               title="📈 Risk Score Over Time",
-                              markers=True, color_discrete_sequence=["#667eea"])
-                fig.add_hrect(y0=0,  y1=30,  fillcolor="#22c55e", opacity=.07, line_width=0)
+                              markers=True, color_discrete_sequence=["#00e5ff"])
+                fig.add_hrect(y0=0,  y1=30,  fillcolor="#10b981", opacity=.07, line_width=0)
                 fig.add_hrect(y0=30, y1=70,  fillcolor="#f59e0b", opacity=.07, line_width=0)
                 fig.add_hrect(y0=70, y1=100, fillcolor="#ef4444", opacity=.07, line_width=0)
                 fig.update_layout(height=300, margin=dict(t=40,b=10),
                                   yaxis=dict(range=[0,100]),
                                   xaxis_title="Date", yaxis_title="Risk Score")
+                fig = _chart_layout(fig)
                 st.plotly_chart(fig, use_container_width=True)
         with cb:
             if "status" in df_u.columns:
@@ -1095,9 +1325,10 @@ def page_student():
                 sv.columns = ["Status","Count"]
                 fig2 = px.pie(sv, values="Count", names="Status",
                               title="🔐 Login Outcomes",
-                              color_discrete_sequence=["#22c55e","#ef4444","#f59e0b","#667eea"],
+                              color_discrete_sequence=["#10b981","#ef4444","#f59e0b","#00e5ff"],
                               hole=0.4)
                 fig2.update_layout(height=300, margin=dict(t=40,b=10))
+                fig2 = _chart_layout(fig2)
                 st.plotly_chart(fig2, use_container_width=True)
 
         # ── row 2: logins by hour + day of week ───────────────────────────────
@@ -1109,9 +1340,10 @@ def page_student():
                 fig3 = px.bar(hc, x="Hour", y="Logins",
                               title="⏰ Logins by Hour of Day",
                               color="Logins",
-                              color_continuous_scale=["#667eea","#764ba2"])
+                              color_continuous_scale=["#0a4a5c","#00e5ff"])
                 fig3.update_layout(height=280, margin=dict(t=40,b=10),
                                    showlegend=False, coloraxis_showscale=False)
+                fig3 = _chart_layout(fig3)
                 st.plotly_chart(fig3, use_container_width=True)
         with cd:
             if "day_of_week" in df_u.columns and df_u["day_of_week"].notna().any():
@@ -1125,9 +1357,10 @@ def page_student():
                 fig4 = px.bar(dc, x="Day", y="Count",
                               title="📅 Logins by Day of Week",
                               color="Count",
-                              color_continuous_scale=["#22c55e","#667eea"])
+                              color_continuous_scale=["#10b981","#00e5ff"])
                 fig4.update_layout(height=280, margin=dict(t=40,b=10),
                                    showlegend=False, coloraxis_showscale=False)
+                fig4 = _chart_layout(fig4)
                 st.plotly_chart(fig4, use_container_width=True)
 
         # ── row 3: risk distribution + browser ───────────────────────────────
@@ -1136,11 +1369,12 @@ def page_student():
             if scores_u:
                 fig5 = go.Figure(go.Histogram(
                     x=scores_u, nbinsx=15,
-                    marker=dict(color="#764ba2", line=dict(color="#fff", width=0.5)),
+                    marker=dict(color="#7c3aed", line=dict(color="#fff", width=0.5)),
                     opacity=0.85))
                 fig5.update_layout(title="📊 My Risk Score Distribution",
                                    xaxis_title="Score", yaxis_title="Count",
                                    height=270, margin=dict(t=40,b=10))
+                fig5 = _chart_layout(fig5)
                 st.plotly_chart(fig5, use_container_width=True)
         with cf:
             if "browser" in df_u.columns and df_u["browser"].notna().any():
@@ -1148,8 +1382,9 @@ def page_student():
                 bc.columns = ["Browser","Count"]
                 fig6 = px.pie(bc, values="Count", names="Browser",
                               title="🌐 Browsers Used",
-                              color_discrete_sequence=["#667eea","#764ba2","#22c55e","#f59e0b"])
+                              color_discrete_sequence=["#00e5ff","#7c3aed","#10b981","#f59e0b"])
                 fig6.update_layout(height=270, margin=dict(t=40,b=10))
+                fig6 = _chart_layout(fig6)
                 st.plotly_chart(fig6, use_container_width=True)
 
         # ── recent activity table ─────────────────────────────────────────────
@@ -1165,7 +1400,7 @@ def page_student():
 
     # ══════════════════════════════════════════════════════════════════════════
     elif page == "Login History":
-        st.markdown('<div class="hero"><h1>📋 My Login History</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>Login History</h1><p>Your complete authentication record</p></div>', unsafe_allow_html=True)
         if not df_u.empty:
             df_show = df_u.copy()
             if "created_at" in df_show.columns:
@@ -1185,7 +1420,7 @@ def page_student():
 
     # ══════════════════════════════════════════════════════════════════════════
     elif page == "Security":
-        st.markdown('<div class="hero"><h1>🔒 Security Overview</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero"><h1>Security Overview</h1><p>Your account risk profile and recommendations</p></div>', unsafe_allow_html=True)
 
         c1,c2,c3,c4 = st.columns(4)
         stat_card(c1, len(ok_u),   "Successful Logins", "")
@@ -1203,16 +1438,17 @@ def page_student():
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=dfs["date"], y=dfs["risk_score"],
                                      mode="markers", name="Risk Score",
-                                     marker=dict(color="#667eea", size=8)))
+                                     marker=dict(color="#00e5ff", size=8)))
             fig.add_trace(go.Scatter(x=dfs["date"], y=dfs["moving_avg"],
                                      mode="lines", name="3-Login Average",
                                      line=dict(color="#f59e0b", width=2, dash="dot")))
-            fig.add_hrect(y0=0,  y1=30,  fillcolor="#22c55e", opacity=.06, line_width=0, annotation_text="Safe")
+            fig.add_hrect(y0=0,  y1=30,  fillcolor="#10b981", opacity=.06, line_width=0, annotation_text="Safe")
             fig.add_hrect(y0=30, y1=70,  fillcolor="#f59e0b", opacity=.06, line_width=0, annotation_text="Medium")
             fig.add_hrect(y0=70, y1=100, fillcolor="#ef4444", opacity=.06, line_width=0, annotation_text="High Risk")
             fig.update_layout(title="📈 Risk Score Trend with Moving Average",
                               height=320, margin=dict(t=40,b=10),
                               yaxis=dict(range=[0,100]))
+            fig = _chart_layout(fig)
             st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("---")
