@@ -24,7 +24,7 @@ initialize_firebase()
 from firebase_config import (
     get_user_by_email, get_user_by_username, get_user_by_id,
     create_user, update_user, get_all_users,
-    log_auth_attempt, get_auth_logs, save_otp, get_valid_otp,
+    log_auth_attempt, get_auth_logs, get_user_logs, save_otp, get_valid_otp,
     get_risk_rules, get_firestore
 )
 from risk_engine import risk_engine
@@ -315,7 +315,7 @@ def _enrich_context(req, user):
     """Pull user's login history from Firebase to improve ML features."""
     if not user or not user.get("id"): return req
     try:
-        logs = get_auth_logs(filters={"user_id": user["id"]}, limit=200) or []
+        logs = get_user_logs(user["id"], limit=200) or []
         if logs:
             fp = req.get("device_fingerprint")
             ok = [l for l in logs if l.get("status") == "success"]
@@ -1034,8 +1034,11 @@ def page_student():
     page = st.session_state.nav_page
     emoji, color, label = risk_badge(rs)
 
-    try: ulogs = get_auth_logs(filters={"user_id": user["id"]}, limit=200) or []
-    except: ulogs = []
+    try:
+        ulogs = get_user_logs(user["id"], limit=200) or []
+    except Exception as e:
+        print(f"[student logs error] {e}")
+        ulogs = []
 
     ok_u   = [l for l in ulogs if l.get("status") == "success"]
     fail_u = [l for l in ulogs if l.get("status") == "failed"]
