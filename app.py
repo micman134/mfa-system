@@ -193,6 +193,8 @@ _DEFAULTS = dict(
     user=None,
     pending_auth=False,
     otp_id=None,
+    otp_display_code=None,      # persists OTP code across reruns
+    otp_email_sent=False,       # whether email was delivered
     risk_score=0.0,
     risk_method="",
     show_signup=False,
@@ -240,8 +242,8 @@ def get_browser_info():
     return browser, os_name
 
 def send_otp_display(email, name, code, role, risk):
-    """Send OTP email AND always display code on screen + console."""
-    # Always print to console first (guaranteed fallback)
+    """Send OTP email, print to console, and SAVE to session_state for persistent display."""
+    # Always print to console
     print(f"\n{'='*60}")
     print(f"  *** OTP CODE ***")
     print(f"  User  : {name} <{email}>  [{role.upper()}]")
@@ -249,7 +251,7 @@ def send_otp_display(email, name, code, role, risk):
     print(f"  Risk  : {risk:.1f}/100")
     print(f"{'='*60}\n")
 
-    # Try sending email
+    # Try email
     email_sent = False
     try:
         from email_utils import send_otp_email as _send
@@ -257,19 +259,28 @@ def send_otp_display(email, name, code, role, risk):
     except Exception as e:
         print(f"[OTP email error] {e}")
 
-    # Always show code on screen regardless of email result
-    if email_sent:
-        st.success(f"📧 Verification code sent to **{email}**")
-    else:
-        st.warning(f"📧 Email unavailable — use the code below:")
+    # Store in session_state — survives reruns
+    st.session_state.otp_display_code = code
+    st.session_state.otp_email_sent   = email_sent
 
+
+def _render_otp_code_box():
+    """Render the persistent OTP code box from session_state. Call inside page_otp()."""
+    code       = st.session_state.get("otp_display_code")
+    email_sent = st.session_state.get("otp_email_sent", False)
+    if not code:
+        return
+    if email_sent:
+        st.success("📧 Verification code sent to your email — also shown below:")
+    else:
+        st.warning("📧 Email unavailable — use the code below to verify:")
     st.markdown(f"""
     <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:14px;
                 padding:28px;text-align:center;margin:12px 0;
                 border:1px solid rgba(102,126,234,.4);">
         <div style="color:#a0aec0;font-size:.82rem;letter-spacing:2px;
                     text-transform:uppercase;margin-bottom:10px;">
-            {'📧 Also sent to your email' if email_sent else '⚠️ Email not configured — use this code'}
+            Your Verification Code
         </div>
         <div style="color:#fff;font-size:3rem;font-weight:900;
                     letter-spacing:20px;font-family:monospace;
@@ -700,6 +711,9 @@ def page_otp():
         st.markdown("Enter the **6-digit code** sent to your email address. Code expires in 5 minutes.")
         st.markdown("---")
 
+        # Always show OTP code box (persists across reruns via session_state)
+        _render_otp_code_box()
+
         # OTP digits
         cols = st.columns(6)
         digits = [cols[i].text_input(f"Digit {i+1}", max_chars=1, key=f"otp_d{i}",
@@ -725,7 +739,8 @@ def page_otp():
                     update_user(user["id"], {"last_login": datetime.now()})
                     log_attempt(user["id"], user["username"], user["email"], user["role"],
                                 "success", "otp_verified", rs, {})
-                    st.session_state.update(authenticated=True, pending_auth=False, otp_id=None)
+                    st.session_state.update(authenticated=True, pending_auth=False,
+                                            otp_id=None, otp_display_code=None, otp_email_sent=False)
                     st.success("✅ Verified! Logging you in…")
                     time.sleep(0.6); st.rerun()
 
@@ -740,11 +755,12 @@ def page_otp():
             send_otp_display(user["email"], user.get("full_name", user["username"]),
                              new_code, user["role"], rs)
             for i in range(6): st.session_state.pop(f"otp_d{i}", None)
-            st.rerun()
+            st.rerun()  # rerun — code persists via session_state
 
         st.markdown("---")
         if st.button("← Cancel & Return to Login", use_container_width=True):
-            st.session_state.update(pending_auth=False, otp_id=None, user=None)
+            st.session_state.update(pending_auth=False, otp_id=None, user=None,
+                                    otp_display_code=None, otp_email_sent=False)
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
